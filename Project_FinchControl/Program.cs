@@ -97,15 +97,15 @@ namespace Project_FinchControl
                         break;
 
                     case "c":
-
+                        DataRecorderDisplayMenuScreen(finchRobot);
                         break;
 
                     case "d":
-
+                        AlarmSystemDisplayMenuScreen(finchRobot);
                         break;
 
                     case "e":
-
+                        UserProgrammingDisplayMenuScreen(finchRobot);
                         break;
 
                     case "f":
