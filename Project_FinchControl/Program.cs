@@ -27,7 +27,7 @@ namespace Project_FinchControl
         // Description: Demonstrate Finch's capabilities combining light, sound, and movement in a Talent Show.
         // Author: Kyle Warner
         // Date Created:  6/2/2021
-        // Last Modified: 6/3/2021
+        // Last Modified: 6/10/2021
         // ************************************
 
 
