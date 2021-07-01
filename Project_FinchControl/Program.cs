@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using FinchAPI;
+using System.Text.RegularExpressions;
 
 namespace Project_FinchControl
 {
@@ -51,6 +52,8 @@ namespace Project_FinchControl
         // Description: S1) Demonstrate Finch's capabilities combining light, sound, and movement in a Talent Show.
         //              S2) Record ambient light and temperature, displaying results in a neatly organized table.
         //              S3) Monitor light and/or temperature levels, sounding an alarm when a threshold is exceeded.
+        //              S4) Add, read, display and execute user defined commands for the Finch robot.
+        //              S5) Save and Load command lists from text files. Data persistance using File IO
         // Author: Kyle Warner
         // Date Created:  6/2/2021
         // Last Modified: 6/22/2021
@@ -1105,6 +1108,9 @@ namespace Project_FinchControl
             bool quitMenu = false;
             string menuChoice;
 
+            // create directory for FileIO (will skip if already exists)
+            Directory.CreateDirectory("Data");
+
             // variables for user programming module configuration
             (int motorSpeed, int ledBrightness, double waitSeconds, int soundFrequency) 
                 commandParameters = (255, 255, 1.0, 300);
@@ -1123,6 +1129,8 @@ namespace Project_FinchControl
                 Console.WriteLine("\tc) View Commands");
                 Console.WriteLine("\td) Execute Commands");
                 Console.WriteLine("\te) Reset Commands List");
+                Console.WriteLine("\tf) Save Commands to File");
+                Console.WriteLine("\tg) Load commands from File");
                 Console.WriteLine("\tq) Main Menu");
                 Console.Write("\t\tEnter Choice: ");
                 menuChoice = Console.ReadLine().ToLower().Trim();
@@ -1150,6 +1158,14 @@ namespace Project_FinchControl
 
                     case "e":
                         commands = UserProgrammingDisplayResetCommands();
+                        break;
+
+                    case "f":
+                        FileIODisplaySaveCommands(commands);
+                        break;
+
+                    case "g":
+                        commands = FileIODisplayLoadCommands(commands);
                         break;
 
                     case "q":
@@ -1435,6 +1451,220 @@ namespace Project_FinchControl
                 }
             } while (!validInput);
         }
+
+        #endregion
+
+        #region FILE I/O
+
+        static void FileIODisplaySaveCommands(List<(Command action, int value)> commands)
+        {
+            bool fileSaved = false;
+            bool saveSuccess;
+            string filename;
+            do
+            {
+                DisplayScreenHeader("Save Commands");
+
+                Console.WriteLine("\tThis will save your current list of commands to a text file for later.");
+                Console.WriteLine("\tFiles will be overwritten if they exist already.");
+                Console.WriteLine("\tHere is a list of of your existing files:\n");
+                FileIOListAllFiles();
+                Console.WriteLine("\n\tWhat would you like to save this file as?");
+                Console.WriteLine("\t(Press enter with no text to cancel)");
+                Console.Write("\t\t- ");
+                filename = Console.ReadLine();
+
+                // guard clause to exit method if nothing is entered
+                if (filename.Length < 1)
+                {
+                    Console.WriteLine("\tThe commands will not be saved at this time.");
+                    DisplayMenuPrompt("User Programming");
+                    return;
+                }
+
+                if (Regex.IsMatch(filename, "^[a-zA-Z0-9]*$"))
+                {
+                    saveSuccess = FileIOSaveCommandList(filename, commands);
+                    if (saveSuccess)
+                    {
+                        Console.WriteLine("\tFile saved.");
+                        fileSaved = true;
+                    } else
+                    {
+                        Console.WriteLine($"\tThere was an error writing this file. Please try again.");
+                        DisplayContinuePrompt();
+                    }
+                } else
+                {
+                    // filename entered not alphanumeric
+                    Console.WriteLine("\tYou must enter a name using only letters and numbers.");
+                    DisplayContinuePrompt();
+                }
+
+            } while (!fileSaved);
+
+            DisplayMenuPrompt("User Programming");
+        }
+
+        static bool FileIOSaveCommandList(string filename, List<(Command action, int value)> commands)
+        {
+            try
+            {
+                string filepath = $"Data\\{filename}.txt";
+                //File.Create(filepath);
+                File.WriteAllLines(filepath, FileIOListToString(commands));
+            } catch (Exception)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        static string[] FileIOListToString(List<(Command action, int value)> commands)
+        {
+            string[] cmdArray = new string[commands.Count];
+            int index = 0;
+            foreach ((Command action, int value) command in commands)
+            {
+                cmdArray[index] = $"{command.action},{command.value}";
+                ++index;
+            }
+
+            return cmdArray;
+        }
+
+        static FileInfo[] FileIOListAllFiles()
+        {
+            DirectoryInfo folder = new DirectoryInfo("Data");
+            FileInfo[] files = folder.GetFiles("*.txt");
+            int index = 1;
+            foreach(FileInfo file in files)
+            {
+                Console.WriteLine($"\t\t{index}) {file.Name}");
+                ++index;
+            }
+
+            return files;
+        }
+
+        static List<(Command action, int value)> FileIODisplayLoadCommands(List<(Command action, int value)> commands)
+        {
+            bool loadSuccess = false;
+            FileInfo[] files;
+            int userFileChoice;
+            string loadStatus;
+            List<(Command action, int value)> newCommands;
+            do
+            {
+                DisplayScreenHeader("Load Commands");
+                Console.WriteLine("\tThis will load a list of commands from a file.");
+                Console.WriteLine("\tHere is a list of your previously saved files:\n");
+                files = FileIOListAllFiles();
+                // exit if no files found
+                if (files.Length < 1)
+                {
+                    Console.WriteLine("\tIt appears you do not have any files saved.");
+                    Console.WriteLine("Your current commands will not be overwritten.");
+                    DisplayMenuPrompt("User Programming");
+                    // return without overwriting existing commands
+                    return commands;
+                }
+                Console.WriteLine("\n\tWould you like to continue loading a file? ([y]es/[n]o)");
+                // get yes or no
+                string userContinue;
+                bool validResponse = false;
+                do
+                {
+                    Console.Write("\t? ");
+                    userContinue = Console.ReadLine().Trim().ToLower();
+                    switch (userContinue)
+                    {
+                        case "y":
+                        case "yes":
+                            validResponse = true;
+                            break;
+
+                        case "n":
+                        case "no":
+                            validResponse = true;
+                            // return current commands
+                            Console.WriteLine("\tYour current commands will not be overwritten.");
+                            DisplayMenuPrompt("User Programming");
+                            return commands;
+
+                        default:
+                            Console.WriteLine("\tPlease type 'yes' or 'no'.");
+                            break;
+                    }
+                } while (!validResponse);
+
+                // int validation for file selection
+                GetValidInteger("Enter a number", 1, files.Length, out userFileChoice);
+                newCommands = FileIOLoadCommandList(files[userFileChoice - 1].Name, out loadStatus);
+
+                if (loadStatus == "Success")
+                {
+                    // load success, return new commands
+                    Console.WriteLine("\tCommands successfully loaded.");
+
+                    // exit the loop
+                    loadSuccess = true;
+                } else
+                {
+                    Console.WriteLine($"\tError: {loadStatus}");
+                    DisplayContinuePrompt();
+                }
+
+            } while (!loadSuccess);
+
+
+            DisplayMenuPrompt("User Programming");
+            return newCommands;
+        }
+
+        static List<(Command action, int value)> FileIOLoadCommandList(string filename, out string status)
+        {
+            string filepath = $"Data\\{filename}";
+            List<(Command action, int value)> commands = new List<(Command action, int value)>();
+
+            try
+            {
+                // load and iterate through command file
+                string[] lines = File.ReadAllLines(filepath);
+                string[] lineData;
+                Command lineAction;
+                int lineValue;
+                foreach (string line in lines)
+                {
+                    // make sure line isn't empty
+                    if (line.Length > 0)
+                    {
+                        // separate line by comma for command,action
+                        lineData = line.Split(',');
+
+                        if (Enum.TryParse(lineData[0], out lineAction) && int.TryParse(lineData[1], out lineValue))
+                        {
+                            commands.Add((action: lineAction, value: lineValue));
+                        }
+                    }
+                }
+
+                status = "Success";
+            } catch (DirectoryNotFoundException)
+            {
+                status = "Could not locate the Data folder.";
+            } catch (FileNotFoundException)
+            {
+                status = $"Could not locate the file - {filename}";
+            } catch (Exception)
+            {
+                status = "Could not read the command file.";
+            }
+
+            return commands;
+        }
+
 
         #endregion
 
